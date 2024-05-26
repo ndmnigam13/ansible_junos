@@ -1,0 +1,9 @@
+{% for config_data in configurations %}
+{% if config_data[0] == inventory_hostname %}
+set interfaces {{config_data[1]}} family inet address {{config_data[2]}}
+set interfaces {{config_data[1]}} family mpls
+set protocols ospf area 0 interface {{config_data[1]}} interface-type p2p
+set protocols mpls interface {{config_data[1]}}
+set protocols ldp interface {{config_data[1]}}
+{% endif %}
+{% endfor %}

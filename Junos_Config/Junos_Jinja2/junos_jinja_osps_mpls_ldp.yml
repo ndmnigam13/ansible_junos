@@ -1,0 +1,57 @@
+---
+- name: Configure Juniper devices
+  hosts: RTP
+  gather_facts: no
+  #connection: local
+  connection: netconf
+
+  tasks:
+    - name: Reading all line from file
+      slurp:
+        src: "device_config_input.txt"
+      register: file_content
+
+    - set_fact:
+        lines: "{{ file_content.content | b64decode | split('\n') }}"
+
+    - set_fact:
+        parsed_lines: []
+
+    - name: Parse lines
+      vars:
+        lines_to_parse: "{{ lines }}"
+      loop: "{{ lines_to_parse }}"
+      set_fact:
+        parsed_lines: "{{ parsed_lines + [item.split(',')] }}"
+
+    - name: Render interface configuration
+      template:
+        src: junos_ospf_mpls_ldp.j2
+        dest: /tmp/{{ inventory_hostname }}_interface_config.txt
+      vars:
+        configurations: "{{ parsed_lines }}" # This variable configurations will we passed into Jinja for matching or loop
+
+    - name: Apply Juniper configuration and doing commit check
+      junipernetworks.junos.junos_config:
+        src: /tmp/{{ inventory_hostname }}_interface_config.txt
+        src_format: set
+        # set confirm other than 0 will result into commit confirmed we do on Junos
+        confirm: 0 # User 0 if you want straight commit instead of commit confirmed
+
+- name: Removing Local Files after change completed
+  hosts: localhost
+  gather_facts: no
+  tasks: 
+    - name: Find files matching /tmp/MX*
+      find:
+        paths: /tmp
+        patterns: 'MX*'
+      register: matched_files
+      no_log: true
+
+    - name: Delete matched files
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ matched_files.files }}"
+      no_log: true
